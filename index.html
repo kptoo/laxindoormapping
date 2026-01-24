@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAX Indoor Navigation</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@3.6.2/dist/maplibre-gl.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="loading-screen" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+        <div style="text-align: center;">
+            <div style="font-size: 24px; font-weight: bold; color: #2563eb; margin-bottom: 10px;">Loading LAX Indoor Navigation...</div>
+            <div style="font-size: 14px; color: #6b7280;">Please wait while we load terminal data</div>
+        </div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <div id="search-container">
+        <input type="text" id="search-input" placeholder="Search for gates, shops, restaurants...">
+        <button id="search-btn">🔍</button>
+        <div id="search-results" class="hidden"></div>
+    </div>
+    
+    <div id="controls">
+        <div class="control-group">
+            <h3>LAX Terminals</h3>
+            <div class="terminal-controls">
+                <button class="terminal-btn active" data-terminal="all">All Terminals</button>
+                <button class="terminal-btn" data-terminal="Terminal_1">Terminal 1</button>
+                <button class="terminal-btn" data-terminal="Terminal_2">Terminal 2</button>
+                <button class="terminal-btn" data-terminal="Terminal_3">Terminal 3</button>
+                <button class="terminal-btn" data-terminal="Terminal_4">Terminal 4</button>
+                <button class="terminal-btn" data-terminal="Terminal_6">Terminal 6</button>
+                <button class="terminal-btn" data-terminal="Terminal_7">Terminal 7</button>
+                <button class="terminal-btn" data-terminal="Terminal_8">Terminal 8</button>
+                <button class="terminal-btn" data-terminal="Terminal_B">Terminal B</button>
+                <button class="terminal-btn" data-terminal="Terminal_Regional">Regional</button>
+                <button class="terminal-btn" data-terminal="Terminal_Wgates">West Gates</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Floor Level</h3>
+            <div class="level-controls">
+                <button class="level-btn active" data-level="all">All Levels</button>
+                <button class="level-btn" data-level="1">Level 1</button>
+                <button class="level-btn" data-level="2">Level 2</button>
+                <button class="level-btn" data-level="3">Level 3</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Features</h3>
+            <div class="feature-controls">
+                <label class="feature-item">
+                    <input type="checkbox" class="feature-toggle" data-feature="building" checked>
+                    <span class="feature-color" style="background-color: #d4d4d4;"></span>
+                    <span>Building</span>
+                </label>
+                <label class="feature-item">
+                    <input type="checkbox" class="feature-toggle" data-feature="gates" checked>
+                    <span class="feature-color" style="background-color: #ef4444;"></span>
+                    <span>Gates</span>
+                </label>
+                <label class="feature-item">
+                    <input type="checkbox" class="feature-toggle" data-feature="shops" checked>
+                    <span class="feature-color" style="background-color: #06b6d4;"></span>
+                    <span>Shops</span>
+                </label>
+                <label class="feature-item">
+                    <input type="checkbox" class="feature-toggle" data-feature="food_beverage" checked>
+                    <span class="feature-color" style="background-color: #f97316;"></span>
+                    <span>Food & Beverage</span>
+                </label>
+                <label class="feature-item">
+                    <input type="checkbox" class="feature-toggle" data-feature="restrooms" checked>
+                    <span class="feature-color" style="background-color: #a78bfa;"></span>
+                    <span>Restrooms</span>
+                </label>
+                <label class="feature-item">
+                    <input type="checkbox" class="feature-toggle" data-feature="services" checked>
+                    <span class="feature-color" style="background-color: #10b981;"></span>
+                    <span>Services</span>
+                </label>
+                <label class="feature-item">
+                    <input type="checkbox" class="feature-toggle" data-feature="service" checked>
+                    <span class="feature-color" style="background-color: #8b5cf6;"></span>
+                    <span>Service Points</span>
+                </label>
+                <label class="feature-item">
+                    <input type="checkbox" class="feature-toggle" data-feature="vertical_circulation" checked>
+                    <span class="feature-color" style="background-color: #f59e0b;"></span>
+                    <span>Elevators/Stairs</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>View Mode</h3>
+            <div class="view-controls">
+                <button id="view-3d-btn" class="view-btn active">3D View</button>
+                <button id="view-2d-btn" class="view-btn">2D View</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Navigation</h3>
+            <div class="navigation-controls">
+                <div class="nav-select-group">
+                    <label>From:</label>
+                    <select id="start-select" class="nav-select">
+                        <option value="">Select start point</option>
+                    </select>
+                </div>
+                <div class="nav-select-group">
+                    <label>To:</label>
+                    <select id="end-select" class="nav-select">
+                        <option value="">Select destination</option>
+                    </select>
+                </div>
+                <button id="find-route-btn" class="nav-btn nav-btn-primary">Find Route</button>
+                <button id="clear-route-btn" class="nav-btn nav-btn-secondary">Clear Route</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="nav-instructions" class="hidden"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/iconConfig.js"></script>
+    <script src="js/dataLoader.js"></script>
+    <script src="js/graphBuilder.js"></script>
+    <script src="js/pathfinding.js"></script>
+    <script src="js/layerManager.js"></script>
+    <script src="js/positioning.js"></script>
+    <script src="js/navigation-simple.js"></script>
+    <script src="js/uiController.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
