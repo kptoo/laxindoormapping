@@ -1,7 +1,100 @@
 class UIController {
     constructor(app) {
         this.app = app;
+        this.setupPanelToggles();
         this.setupEventListeners();
+        this.setupCollapsibleSections();
+    }
+
+    setupPanelToggles() {
+        // Menu toggle button
+        const menuToggleBtn = document.getElementById('menu-toggle-btn');
+        const controlsPanel = document.getElementById('controls');
+        
+        if (menuToggleBtn) {
+            menuToggleBtn.addEventListener('click', () => {
+                const isHidden = controlsPanel.classList.contains('panel-hidden');
+                
+                if (isHidden) {
+                    // Close search panel if open
+                    document.getElementById('search-panel').classList.add('panel-hidden');
+                    document.getElementById('search-panel').classList.remove('panel-visible');
+                    
+                    // Open controls panel
+                    controlsPanel.classList.remove('panel-hidden');
+                    controlsPanel.classList.add('panel-visible');
+                } else {
+                    controlsPanel.classList.add('panel-hidden');
+                    controlsPanel.classList.remove('panel-visible');
+                }
+            });
+        }
+
+        // Search toggle button
+        const searchToggleBtn = document.getElementById('search-toggle-btn');
+        const searchPanel = document.getElementById('search-panel');
+        
+        if (searchToggleBtn) {
+            searchToggleBtn.addEventListener('click', () => {
+                const isHidden = searchPanel.classList.contains('panel-hidden');
+                
+                if (isHidden) {
+                    // Close controls panel if open
+                    controlsPanel.classList.add('panel-hidden');
+                    controlsPanel.classList.remove('panel-visible');
+                    
+                    // Open search panel
+                    searchPanel.classList.remove('panel-hidden');
+                    searchPanel.classList.add('panel-visible');
+                    
+                    // Focus search input
+                    setTimeout(() => {
+                        document.getElementById('search-input').focus();
+                    }, 300);
+                } else {
+                    searchPanel.classList.add('panel-hidden');
+                    searchPanel.classList.remove('panel-visible');
+                }
+            });
+        }
+
+        // Panel close buttons
+        const closeBtns = document.querySelectorAll('.panel-close-btn');
+        closeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const panelType = btn.getAttribute('data-panel');
+                const panel = panelType === 'search' ? searchPanel : controlsPanel;
+                
+                panel.classList.add('panel-hidden');
+                panel.classList.remove('panel-visible');
+            });
+        });
+
+        // Close panels when clicking on map
+        const map = document.getElementById('map');
+        map.addEventListener('click', (e) => {
+            // Only close on direct map clicks, not on markers/popups
+            if (e.target === map || e.target.classList.contains('maplibregl-canvas')) {
+                controlsPanel.classList.add('panel-hidden');
+                controlsPanel.classList.remove('panel-visible');
+                searchPanel.classList.add('panel-hidden');
+                searchPanel.classList.remove('panel-visible');
+            }
+        });
+    }
+
+    setupCollapsibleSections() {
+        const collapsibles = document.querySelectorAll('.collapsible');
+        
+        collapsibles.forEach(section => {
+            const header = section.querySelector('.collapsible-header');
+            
+            if (header) {
+                header.addEventListener('click', () => {
+                    section.classList.toggle('collapsed');
+                });
+            }
+        });
     }
 
     setupEventListeners() {
@@ -128,6 +221,10 @@ class UIController {
             if (route) {
                 this.showNavigationInstructions(route);
                 this.app.navigation.startNavigation();
+                
+                // Close panels after starting navigation
+                document.getElementById('controls').classList.add('panel-hidden');
+                document.getElementById('controls').classList.remove('panel-visible');
             } else {
                 alert('No route found between these points');
             }
@@ -247,6 +344,10 @@ class UIController {
             item.addEventListener('click', () => {
                 this.zoomToFeature(feature);
                 searchResults.classList.add('hidden');
+                
+                // Close search panel after selection
+                document.getElementById('search-panel').classList.add('panel-hidden');
+                document.getElementById('search-panel').classList.remove('panel-visible');
             });
             
             searchResults.appendChild(item);
@@ -286,6 +387,10 @@ class UIController {
 
         manualBtn.addEventListener('click', () => {
             this.app.positioning.enableManualMode();
+            
+            // Close panels to allow map interaction
+            document.getElementById('controls').classList.add('panel-hidden');
+            document.getElementById('controls').classList.remove('panel-visible');
         });
     }
 
@@ -293,38 +398,28 @@ class UIController {
         const panel = document.getElementById('nav-instructions');
         panel.classList.remove('hidden');
 
-        let html = `
-            <div id="nav-header">
-                <h3>Navigation</h3>
-                <button id="close-nav">×</button>
-            </div>
-            <div id="instruction-list">
-        `;
-
-        route.instructions.forEach((instruction, index) => {
-            const icon = this.getInstructionIcon(instruction.type);
-            html += `
-                <div class="instruction-item" data-index="${index}">
-                    <div class="instruction-icon">${icon}</div>
-                    <div class="instruction-text">${instruction.text}</div>
-                </div>
-            `;
-        });
-
         const totalDistance = Math.round(route.distance);
         const estimatedTime = Math.ceil(route.distance / 1.4 / 60);
 
-        html += `
-            </div>
-            <div style="padding: 15px; border-top: 1px solid #e5e7eb; background: #f9fafb;">
-                <div style="display: flex; justify-content: space-between; font-size: 14px;">
-                    <div><strong>Distance:</strong> ${totalDistance}m</div>
-                    <div><strong>Time:</strong> ~${estimatedTime} min</div>
-                </div>
-            </div>
-        `;
+        document.getElementById('nav-distance').textContent = `${totalDistance}m`;
+        document.getElementById('nav-time').textContent = `${estimatedTime} min`;
 
-        panel.innerHTML = html;
+        const instructionList = document.getElementById('instruction-list');
+        instructionList.innerHTML = '';
+
+        route.instructions.forEach((instruction, index) => {
+            const icon = this.getInstructionIcon(instruction.type);
+            const item = document.createElement('div');
+            item.className = 'instruction-item';
+            item.setAttribute('data-index', index);
+            
+            item.innerHTML = `
+                <div class="instruction-icon">${icon}</div>
+                <div class="instruction-text">${instruction.text}</div>
+            `;
+            
+            instructionList.appendChild(item);
+        });
 
         document.getElementById('close-nav').addEventListener('click', () => {
             this.hideNavigationInstructions();
@@ -336,7 +431,13 @@ class UIController {
     }
 
     getInstructionIcon(type) {
-        const icons = { walk: '🚶', level_change: '🔼', transport: '🚌', arrival: '🎯' };
+        const icons = { 
+            walk: '🚶', 
+            level_change: '🔼', 
+            transport: '🚌', 
+            arrival: '🎯', 
+            entrance: '🚪' 
+        };
         return icons[type] || '📍';
     }
 
