@@ -14,63 +14,42 @@ class LAXIndoorNavApp {
         console.log('=== STARTING INITIALIZATION ===');
         
         try {
-            console.log('Step 1: Initializing map...');
+            // Initialize map first
             this.initializeMap();
             
-            console.log('Step 2: Loading data...');
-            await this.loadData();
+            // Show map immediately with loading indicator in corner
+            this.hideLoadingScreen();
+            this.showProgressIndicator();
             
-            console.log('Step 3: Waiting for map ready...');
-            await this.waitForMapReady();
+            // Load everything else
+            await this.loadWithProgress();
             
-            console.log('Step 4: Initializing managers...');
-            await this.initializeManagers();
-            
-            console.log('Step 5: Loading navigation graph...');
-            await this.loadNavigationGraph();
-            
-            console.log('Step 6: Initializing navigation...');
-            this.initializeNavigation();
-            
-            console.log('Step 7: Initializing positioning...');
-            this.initializePositioning();
-            
-            console.log('Step 8: Initializing UI...');
-            this.initializeUI();
-            
+            this.hideProgressIndicator();
             console.log('=== INITIALIZATION COMPLETE ===');
             
-            const loadingScreen = document.getElementById('loading-screen');
-            if (loadingScreen) {
-                loadingScreen.style.display = 'none';
-            }
         } catch (error) {
             console.error('=== INITIALIZATION ERROR ===', error);
-            
-            const loadingScreen = document.getElementById('loading-screen');
-            if (loadingScreen) {
-                loadingScreen.innerHTML = `
-                    <div style="text-align: center;">
-                        <div style="font-size: 24px; font-weight: bold; color: #ef4444; margin-bottom: 10px;">Error Loading Application</div>
-                        <div style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">${error.message}</div>
-                        <button onclick="location.reload()" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer;">Reload Page</button>
-                    </div>
-                `;
-            }
+            this.showError(error);
         }
     }
 
-    waitForMapReady() {
-        return new Promise((resolve) => {
-            if (this.map.loaded()) {
-                resolve();
-                return;
-            }
+    async loadWithProgress() {
+        const steps = [
+            { name: 'Loading terminal data...', fn: () => this.loadData() },
+            { name: 'Setting up layers...', fn: () => this.initializeManagers() },
+            { name: 'Loading routing graph...', fn: () => this.loadNavigationGraph() },
+            { name: 'Initializing navigation...', fn: () => this.initializeNavigation() },
+            { name: 'Setting up positioning...', fn: () => this.initializePositioning() },
+            { name: 'Initializing controls...', fn: () => this.initializeUI() }
+        ];
 
-            this.map.once('load', () => {
-                resolve();
-            });
-        });
+        for (let i = 0; i < steps.length; i++) {
+            const step = steps[i];
+            this.updateProgress(step.name, (i / steps.length) * 100);
+            await step.fn();
+        }
+        
+        this.updateProgress('Ready!', 100);
     }
 
     initializeMap() {
@@ -78,6 +57,62 @@ class LAXIndoorNavApp {
         this.map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
         this.map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
         window.map = this.map;
+    }
+
+    hideLoadingScreen() {
+        const loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+            loadingScreen.style.display = 'none';
+        }
+    }
+
+    showProgressIndicator() {
+        const indicator = document.createElement('div');
+        indicator.id = 'progress-indicator';
+        indicator.style.cssText = `
+            position: fixed;
+            bottom: 80px;
+            left: 20px;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 1000;
+            font-size: 13px;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        `;
+        indicator.innerHTML = `
+            <div class="spinner" style="width: 16px; height: 16px; border: 2px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+            <span id="progress-text">Loading...</span>
+        `;
+        document.body.appendChild(indicator);
+        
+        // Add spinner animation
+        const style = document.createElement('style');
+        style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+        document.head.appendChild(style);
+    }
+
+    updateProgress(text, percent) {
+        const progressText = document.getElementById('progress-text');
+        if (progressText) {
+            progressText.textContent = text;
+        }
+        console.log(`[${percent.toFixed(0)}%] ${text}`);
+    }
+
+    hideProgressIndicator() {
+        const indicator = document.getElementById('progress-indicator');
+        if (indicator) {
+            setTimeout(() => {
+                indicator.style.opacity = '0';
+                indicator.style.transition = 'opacity 0.3s';
+                setTimeout(() => indicator.remove(), 300);
+            }, 500);
+        }
     }
 
     async loadData() {
@@ -92,30 +127,14 @@ class LAXIndoorNavApp {
     }
 
     async loadNavigationGraph() {
-        console.log('Loading routing graph...');
-        try {
-            const response = await fetch(CONFIG.routingGraphPath);
-            if (!response.ok) {
-                throw new Error(`Failed to load routing graph: ${response.status}`);
-            }
-            
-            const graphData = await response.json();
-            console.log(`Loaded graph: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges`);
-            
-            // Pass graph data directly to Pathfinder - it handles bidirectional edges automatically
-            this.pathfinder = new Pathfinder(graphData);
-            console.log('Pathfinder initialized with bidirectional edges');
-        } catch (error) {
-            console.error('Error loading routing graph:', error);
-            throw error;
-        }
+        const response = await fetch(CONFIG.routingGraphPath);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const graphData = await response.json();
+        this.pathfinder = new Pathfinder(graphData);
     }
 
     initializeNavigation() {
         this.navigation = new NavigationSystem(this.map, this.layerManager, this.pathfinder, null);
-        this.navigation.onRouteCalculated((route) => console.log('Route calculated:', route));
-        this.navigation.onNavigationStarted(() => console.log('Navigation started'));
-        this.navigation.onNavigationEnded(() => console.log('Navigation ended'));
     }
 
     initializePositioning() {
@@ -130,18 +149,29 @@ class LAXIndoorNavApp {
         this.uiController = new UIController(this);
     }
 
+    showError(error) {
+        const loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+            loadingScreen.style.display = 'flex';
+            loadingScreen.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <div style="font-size: 24px; font-weight: bold; color: #ef4444; margin-bottom: 10px;">⚠️ Error</div>
+                    <div style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">${error.message}</div>
+                    <button onclick="location.reload()" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer;">Reload</button>
+                </div>
+            `;
+        }
+    }
+
     calculateTerminalBounds(terminalId) {
         const terminal = CONFIG.terminals.find(t => t.id === terminalId);
         if (!terminal) return null;
-
         const features = this.dataLoader.getFeatures(terminalId, 'building');
-        if (!features || !features.features || features.features.length === 0) {
-            return null;
-        }
-
+        if (!features || !features.features || features.features.length === 0) return null;
+        
         let minLng = Infinity, minLat = Infinity;
         let maxLng = -Infinity, maxLat = -Infinity;
-
+        
         features.features.forEach(feature => {
             const coords = this.extractCoordinates(feature.geometry);
             coords.forEach(coord => {
@@ -151,9 +181,8 @@ class LAXIndoorNavApp {
                 maxLat = Math.max(maxLat, coord[1]);
             });
         });
-
+        
         if (minLng === Infinity) return null;
-
         return [[minLng, minLat], [maxLng, maxLat]];
     }
 

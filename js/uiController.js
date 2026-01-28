@@ -1,13 +1,14 @@
 class UIController {
     constructor(app) {
         this.app = app;
+        this.currentTerminal = 'all';
+        this.currentLevel = 'all';
         this.setupPanelToggles();
         this.setupEventListeners();
         this.setupCollapsibleSections();
     }
 
     setupPanelToggles() {
-        // Menu toggle button
         const menuToggleBtn = document.getElementById('menu-toggle-btn');
         const controlsPanel = document.getElementById('controls');
         
@@ -16,11 +17,8 @@ class UIController {
                 const isHidden = controlsPanel.classList.contains('panel-hidden');
                 
                 if (isHidden) {
-                    // Close search panel if open
                     document.getElementById('search-panel').classList.add('panel-hidden');
                     document.getElementById('search-panel').classList.remove('panel-visible');
-                    
-                    // Open controls panel
                     controlsPanel.classList.remove('panel-hidden');
                     controlsPanel.classList.add('panel-visible');
                 } else {
@@ -30,7 +28,6 @@ class UIController {
             });
         }
 
-        // Search toggle button
         const searchToggleBtn = document.getElementById('search-toggle-btn');
         const searchPanel = document.getElementById('search-panel');
         
@@ -39,15 +36,11 @@ class UIController {
                 const isHidden = searchPanel.classList.contains('panel-hidden');
                 
                 if (isHidden) {
-                    // Close controls panel if open
                     controlsPanel.classList.add('panel-hidden');
                     controlsPanel.classList.remove('panel-visible');
-                    
-                    // Open search panel
                     searchPanel.classList.remove('panel-hidden');
                     searchPanel.classList.add('panel-visible');
                     
-                    // Focus search input
                     setTimeout(() => {
                         document.getElementById('search-input').focus();
                     }, 300);
@@ -58,22 +51,18 @@ class UIController {
             });
         }
 
-        // Panel close buttons
         const closeBtns = document.querySelectorAll('.panel-close-btn');
         closeBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 const panelType = btn.getAttribute('data-panel');
                 const panel = panelType === 'search' ? searchPanel : controlsPanel;
-                
                 panel.classList.add('panel-hidden');
                 panel.classList.remove('panel-visible');
             });
         });
 
-        // Close panels when clicking on map
         const map = document.getElementById('map');
         map.addEventListener('click', (e) => {
-            // Only close on direct map clicks, not on markers/popups
             if (e.target === map || e.target.classList.contains('maplibregl-canvas')) {
                 controlsPanel.classList.add('panel-hidden');
                 controlsPanel.classList.remove('panel-visible');
@@ -114,12 +103,51 @@ class UIController {
                 buttons.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 const terminal = btn.dataset.terminal;
+                
+                this.currentTerminal = terminal;
+                
+                // Update available levels based on terminal
+                this.updateLevelControls(terminal);
+                
+                // Filter map layers
                 this.app.layerManager.filterByTerminal(terminal);
+                
                 if (terminal !== 'all') {
                     this.zoomToTerminal(terminal);
                 }
             });
         });
+    }
+
+    updateLevelControls(terminalId) {
+        const levelControls = document.querySelector('.level-controls');
+        
+        // Get available levels for this terminal
+        const availableLevels = this.app.dataLoader.getAvailableLevels(terminalId);
+        
+        console.log(`Available levels for ${terminalId}:`, availableLevels);
+        
+        // Clear existing level buttons
+        levelControls.innerHTML = '';
+        
+        // Always add "All Levels" button
+        const allBtn = document.createElement('button');
+        allBtn.className = 'level-btn' + (this.currentLevel === 'all' ? ' active' : '');
+        allBtn.setAttribute('data-level', 'all');
+        allBtn.textContent = 'All';
+        levelControls.appendChild(allBtn);
+        
+        // Add buttons for each available level
+        availableLevels.forEach(level => {
+            const btn = document.createElement('button');
+            btn.className = 'level-btn' + (this.currentLevel === level ? ' active' : '');
+            btn.setAttribute('data-level', level);
+            btn.textContent = `L${level}`;
+            levelControls.appendChild(btn);
+        });
+        
+        // Re-attach event listeners to new buttons
+        this.setupLevelControls();
     }
 
     setupLevelControls() {
@@ -129,7 +157,10 @@ class UIController {
                 buttons.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 const level = btn.dataset.level;
-                this.app.layerManager.filterByLevel(level === 'all' ? 'all' : parseInt(level));
+                
+                this.currentLevel = level === 'all' ? 'all' : parseInt(level);
+                
+                this.app.layerManager.filterByLevel(this.currentLevel);
             });
         });
     }
@@ -222,7 +253,6 @@ class UIController {
                 this.showNavigationInstructions(route);
                 this.app.navigation.startNavigation();
                 
-                // Close panels after starting navigation
                 document.getElementById('controls').classList.add('panel-hidden');
                 document.getElementById('controls').classList.remove('panel-visible');
             } else {
@@ -345,7 +375,6 @@ class UIController {
                 this.zoomToFeature(feature);
                 searchResults.classList.add('hidden');
                 
-                // Close search panel after selection
                 document.getElementById('search-panel').classList.add('panel-hidden');
                 document.getElementById('search-panel').classList.remove('panel-visible');
             });
@@ -388,7 +417,6 @@ class UIController {
         manualBtn.addEventListener('click', () => {
             this.app.positioning.enableManualMode();
             
-            // Close panels to allow map interaction
             document.getElementById('controls').classList.add('panel-hidden');
             document.getElementById('controls').classList.remove('panel-visible');
         });

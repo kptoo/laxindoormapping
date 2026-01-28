@@ -129,6 +129,50 @@ class DataLoader {
         return this.data.connectors || { type: 'FeatureCollection', features: [] };
     }
 
+    // NEW METHOD: Get available levels for a specific terminal
+    getAvailableLevels(terminalId) {
+        const levels = new Set();
+        
+        if (terminalId === 'all') {
+            // Get all levels from all terminals
+            CONFIG.terminals.forEach(terminal => {
+                const terminalLevels = this.getAvailableLevels(terminal.id);
+                terminalLevels.forEach(level => levels.add(level));
+            });
+        } else {
+            // Get levels from specific terminal
+            const terminalData = this.data.features[terminalId];
+            
+            if (terminalData) {
+                // Check all feature types
+                Object.values(terminalData).forEach(featureCollection => {
+                    if (featureCollection && featureCollection.features) {
+                        featureCollection.features.forEach(feature => {
+                            const level = feature.properties.level || feature.properties.Level;
+                            if (level !== null && level !== undefined) {
+                                levels.add(parseInt(level));
+                            }
+                        });
+                    }
+                });
+            }
+            
+            // Also check corridors
+            const corridorData = this.data.corridors[terminalId];
+            if (corridorData && corridorData.features) {
+                corridorData.features.forEach(feature => {
+                    const level = feature.properties.level || feature.properties.Level;
+                    if (level !== null && level !== undefined) {
+                        levels.add(parseInt(level));
+                    }
+                });
+            }
+        }
+        
+        // Convert to sorted array
+        return Array.from(levels).sort((a, b) => a - b);
+    }
+
     getAllFeaturesForSearch() {
         const allFeatures = [];
         const searchableTypes = ['gates', 'shops', 'food_beverage', 'restrooms', 

@@ -11,10 +11,22 @@ class LayerManager {
 
     async initialize() {
         console.log('LayerManager: Starting initialization...');
+        await this.waitForMapStyle();
         await this.loadAllIcons();
         this.addAllLayers();
         this.setupInteractions();
         console.log('LayerManager: Initialization complete');
+    }
+
+    async waitForMapStyle() {
+        return new Promise((resolve) => {
+            if (this.map.isStyleLoaded()) {
+                resolve();
+            } else {
+                this.map.once('styledata', resolve);
+                setTimeout(resolve, 1000);
+            }
+        });
     }
 
     async loadAllIcons() {
@@ -380,11 +392,13 @@ class LayerManager {
     }
 
     filterByTerminal(terminalId) {
+        console.log(`Filtering by terminal: ${terminalId}`);
         this.currentTerminal = terminalId;
         this.updateLayerVisibility();
     }
 
     filterByLevel(level) {
+        console.log(`Filtering by level: ${level}`);
         this.currentLevel = level;
         this.updateLayerVisibility();
     }
@@ -399,24 +413,52 @@ class LayerManager {
     }
 
     updateLayerVisibility() {
+        console.log(`Updating visibility - Terminal: ${this.currentTerminal}, Level: ${this.currentLevel}`);
+        
         for (const terminal of CONFIG.terminals) {
             const terminalVisible = this.currentTerminal === 'all' || this.currentTerminal === terminal.id;
 
+            // Handle corridor layers with level filtering
             const corridorLayerId = `corridors-${terminal.id}`;
             if (this.map.getLayer(corridorLayerId)) {
                 try {
-                    this.map.setLayoutProperty(corridorLayerId, 'visibility', terminalVisible ? 'visible' : 'none');
+                    if (terminalVisible) {
+                        // Update corridor data with level filtering
+                        const corridorData = this.dataLoader.getCorridors(terminal.id, this.currentLevel);
+                        this.map.getSource(corridorLayerId).setData(corridorData);
+                        this.map.setLayoutProperty(corridorLayerId, 'visibility', 'visible');
+                    } else {
+                        this.map.setLayoutProperty(corridorLayerId, 'visibility', 'none');
+                    }
                 } catch (error) {
-                    console.warn(`Could not set visibility for ${corridorLayerId}`);
+                    console.warn(`Could not update corridors for ${corridorLayerId}`);
                 }
             }
 
+            // Handle feature layers with level filtering
             for (const type of Object.keys(CONFIG.featureTypes)) {
                 if (type === 'corridors' || type === 'connectors') continue;
 
                 const featureVisible = this.visibleFeatures.has(type);
                 const layerId = `${type}-${terminal.id}`;
 
+                // Update the source data with filtered features
+                if (this.map.getSource(layerId)) {
+                    try {
+                        if (terminalVisible && featureVisible) {
+                            // Get filtered data for this level
+                            const filteredData = this.dataLoader.getFeatures(terminal.id, type, this.currentLevel);
+                            this.map.getSource(layerId).setData(filteredData);
+                        } else {
+                            // Set empty data if not visible
+                            this.map.getSource(layerId).setData({ type: 'FeatureCollection', features: [] });
+                        }
+                    } catch (error) {
+                        console.warn(`Could not update source for ${layerId}`);
+                    }
+                }
+
+                // Update layer visibility
                 ['', '-fill', '-outline', '-label', '-icon'].forEach(suffix => {
                     const fullLayerId = layerId + suffix;
                     if (this.map.getLayer(fullLayerId)) {
@@ -577,12 +619,11 @@ class LayerManager {
 
         console.log(`Finding route to: ${name} at [${coordinates[0]}, ${coordinates[1]}], Level ${level}, Terminal ${terminal}`);
         
-        const endNodeId = this.app.graphBuilder.findNodeByNameOrProximity(
-            name,
+        const endNodeId = this.app.pathfinder.findNearestNode(
             coordinates[0],
             coordinates[1],
             level,
-            terminal
+            { maxDistance: 500, preferDestinations: true }
         );
 
         if (endNodeId === null || endNodeId === undefined) {
@@ -591,12 +632,11 @@ class LayerManager {
             return;
         }
 
-        const startNodeId = this.app.graphBuilder.findNearestNode(
+        const startNodeId = this.app.pathfinder.findNearestNode(
             position.longitude,
             position.latitude,
             position.level,
-            null,
-            500
+            { maxDistance: 500, preferDestinations: false }
         );
 
         if (startNodeId === null || startNodeId === undefined) {
