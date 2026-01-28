@@ -204,83 +204,87 @@ class Pathfinder {
     }
 
     generateInstructions(nodeIds) {
-    const instructions = [];
-    let currentLevel = null;
-    let currentTransport = null;
-    let walkDistance = 0;
+        const instructions = [];
+        let currentLevel = null;
+        let currentTransport = null;
+        let walkDistance = 0;
 
-    for (let i = 0; i < nodeIds.length - 1; i++) {
-        const fromId = nodeIds[i];
-        const toId = nodeIds[i + 1];
-        
-        const fromNode = this.nodes.get(fromId);
-        const toNode = this.nodes.get(toId);
-
-        const edges = this.edges.get(fromId) || [];
-        const edge = edges.find(e => e.to === toId);
-
-        if (!edge) continue;
-
-        if (fromNode.level !== currentLevel && currentLevel !== null) {
-            if (edge.type === 'vertical') {
-                instructions.push({
-                    type: 'level_change',
-                    from_level: fromNode.level,
-                    to_level: toNode.level,
-                    direction: toNode.level > fromNode.level ? 'up' : 'down',
-                    method: fromNode.name || 'stairs/elevator',
-                    text: `Take ${fromNode.name || 'stairs/elevator'} to Level ${toNode.level}`
-                });
-            }
-        }
-
-        if (edge.type !== 'corridor' && edge.type !== 'road' && edge.type !== currentTransport) {
-            if (walkDistance > 0) {
-                const walkDistanceFeet = Math.round(walkDistance * 3.28084);
-                instructions.push({
-                    type: 'walk',
-                    distance: walkDistance, // Keep original in meters for calculations
-                    text: `Walk ${walkDistanceFeet}ft`
-                });
-                walkDistance = 0;
-            }
-
-            if (edge.type === 'entrance') {
-                instructions.push({
-                    type: 'entrance',
-                    text: fromNode.indoor ? 'Exit building to outdoor area' : 'Enter building from outdoor area'
-                });
-            }
+        for (let i = 0; i < nodeIds.length - 1; i++) {
+            const fromId = nodeIds[i];
+            const toId = nodeIds[i + 1];
             
-            currentTransport = edge.type;
-        } else if (edge.type === 'corridor' || edge.type === 'road') {
-            walkDistance += edge.weight;
-            currentTransport = 'walk';
+            const fromNode = this.nodes.get(fromId);
+            const toNode = this.nodes.get(toId);
+
+            const edges = this.edges.get(fromId) || [];
+            const edge = edges.find(e => e.to === toId);
+
+            if (!edge) continue;
+
+            if (fromNode.level !== currentLevel && currentLevel !== null) {
+                if (edge.type === 'vertical') {
+                    instructions.push({
+                        type: 'level_change',
+                        from_level: fromNode.level,
+                        to_level: toNode.level,
+                        direction: toNode.level > fromNode.level ? 'up' : 'down',
+                        method: fromNode.name || 'stairs/elevator',
+                        text: `Take ${fromNode.name || 'stairs/elevator'} to Level ${toNode.level}`
+                    });
+                }
+            }
+
+            if (edge.type !== 'corridor' && edge.type !== 'road' && edge.type !== currentTransport) {
+                if (walkDistance > 0) {
+                    // Convert meters to feet for display
+                    const walkDistanceFeet = Math.round(walkDistance * 3.28084);
+                    instructions.push({
+                        type: 'walk',
+                        distance: walkDistance, // Keep original in meters for calculations
+                        text: `Walk ${walkDistanceFeet}ft`
+                    });
+                    walkDistance = 0;
+                }
+
+                if (edge.type === 'entrance') {
+                    instructions.push({
+                        type: 'entrance',
+                        text: fromNode.indoor ? 'Exit building to outdoor area' : 'Enter building from outdoor area'
+                    });
+                } else if (edge.type === 'vertical') {
+                    // Already handled above
+                }
+                
+                currentTransport = edge.type;
+            } else if (edge.type === 'corridor' || edge.type === 'road') {
+                walkDistance += edge.weight;
+                currentTransport = 'walk';
+            }
+
+            currentLevel = toNode.level;
         }
 
-        currentLevel = toNode.level;
-    }
+        if (walkDistance > 0) {
+            // Convert meters to feet for display
+            const walkDistanceFeet = Math.round(walkDistance * 3.28084);
+            instructions.push({
+                type: 'walk',
+                distance: walkDistance, // Keep original in meters for calculations
+                text: `Walk ${walkDistanceFeet}ft`
+            });
+        }
 
-    if (walkDistance > 0) {
-        const walkDistanceFeet = Math.round(walkDistance * 3.28084);
-        instructions.push({
-            type: 'walk',
-            distance: walkDistance, // Keep original in meters for calculations
-            text: `Walk ${walkDistanceFeet}ft`
-        });
-    }
+        const lastNode = this.nodes.get(nodeIds[nodeIds.length - 1]);
+        if (lastNode && lastNode.name) {
+            instructions.push({
+                type: 'arrival',
+                destination: lastNode.name,
+                text: `Arrive at ${lastNode.name}`
+            });
+        }
 
-    const lastNode = this.nodes.get(nodeIds[nodeIds.length - 1]);
-    if (lastNode && lastNode.name) {
-        instructions.push({
-            type: 'arrival',
-            destination: lastNode.name,
-            text: `Arrive at ${lastNode.name}`
-        });
+        return instructions;
     }
-
-    return instructions;
-}
 
     findNearestNode(longitude, latitude, level = null, options = {}) {
         const maxDistance = options.maxDistance || 500;
