@@ -65,14 +65,16 @@ class UIController {
         });
 
         const map = document.getElementById('map');
-        map.addEventListener('click', (e) => {
-            if (e.target === map || e.target.classList.contains('maplibregl-canvas')) {
-                controlsPanel.classList.add('panel-hidden');
-                controlsPanel.classList.remove('panel-visible');
-                searchPanel.classList.add('panel-hidden');
-                searchPanel.classList.remove('panel-visible');
-            }
-        });
+        if (map) {
+            map.addEventListener('click', (e) => {
+                if (e.target === map || e.target.classList.contains('maplibregl-canvas')) {
+                    controlsPanel.classList.add('panel-hidden');
+                    controlsPanel.classList.remove('panel-visible');
+                    searchPanel.classList.add('panel-hidden');
+                    searchPanel.classList.remove('panel-visible');
+                }
+            });
+        }
     }
 
     setupCollapsibleSections() {
@@ -120,6 +122,8 @@ class UIController {
 
     updateLevelControls(terminalId) {
         const levelControls = document.querySelector('.level-controls');
+        if (!levelControls) return;
+        
         const availableLevels = this.app.dataLoader.getAvailableLevels(terminalId);
         
         console.log(`Available levels for ${terminalId}:`, availableLevels);
@@ -172,6 +176,8 @@ class UIController {
         const view3dBtn = document.getElementById('view-3d-btn');
         const view2dBtn = document.getElementById('view-2d-btn');
         
+        if (!view3dBtn || !view2dBtn) return;
+        
         view3dBtn.addEventListener('click', () => {
             view3dBtn.classList.add('active');
             view2dBtn.classList.remove('active');
@@ -189,6 +195,12 @@ class UIController {
         const findRouteBtn = document.getElementById('find-route-btn');
         const clearRouteBtn = document.getElementById('clear-route-btn');
 
+        if (!findRouteBtn || !clearRouteBtn) {
+            console.warn('Navigation buttons not found');
+            return;
+        }
+
+        // Initialize searchable selects
         this.initSearchableSelects();
 
         findRouteBtn.addEventListener('click', () => {
@@ -285,15 +297,34 @@ class UIController {
             return a.name.localeCompare(b.name);
         });
 
-        this.setupSearchableSelect('start', this.allNavigationPoints);
-        this.setupSearchableSelect('end', this.allNavigationPoints);
+        // Setup start select
+        const startDisplay = document.querySelector('[data-select="start"]');
+        if (startDisplay) {
+            this.setupSearchableSelect('start', this.allNavigationPoints);
+        } else {
+            console.warn('Start select display not found');
+        }
+        
+        // Setup end select
+        const endDisplay = document.querySelector('[data-select="end"]');
+        if (endDisplay) {
+            this.setupSearchableSelect('end', this.allNavigationPoints);
+        } else {
+            console.warn('End select display not found');
+        }
     }
 
     setupSearchableSelect(type, points) {
         const displayElement = document.querySelector(`[data-select="${type}"]`);
+        if (!displayElement) return;
+        
         const dropdownElement = displayElement.parentElement.querySelector('.select-dropdown');
+        if (!dropdownElement) return;
+        
         const searchInput = dropdownElement.querySelector('.select-search');
         const optionsContainer = dropdownElement.querySelector('.select-options');
+        
+        if (!searchInput || !optionsContainer) return;
 
         this.renderSelectOptions(optionsContainer, points, type);
 
@@ -341,6 +372,8 @@ class UIController {
     }
 
     renderSelectOptions(container, points, type) {
+        if (!container) return;
+        
         container.innerHTML = '';
 
         if (points.length === 0) {
@@ -375,13 +408,19 @@ class UIController {
         }
 
         const displayElement = document.querySelector(`[data-select="${type}"]`);
+        if (!displayElement) return;
+        
         const textElement = displayElement.querySelector('.select-text');
-        textElement.textContent = point.displayText;
-        textElement.classList.remove('placeholder');
+        if (textElement) {
+            textElement.textContent = point.displayText;
+            textElement.classList.remove('placeholder');
+        }
 
         const dropdownElement = displayElement.parentElement.querySelector('.select-dropdown');
-        dropdownElement.classList.add('hidden');
-        displayElement.classList.remove('active');
+        if (dropdownElement) {
+            dropdownElement.classList.add('hidden');
+            displayElement.classList.remove('active');
+        }
 
         console.log(`Selected ${type}: ${point.name}`);
     }
@@ -390,6 +429,8 @@ class UIController {
         const searchInput = document.getElementById('search-input');
         const searchBtn = document.getElementById('search-btn');
         const searchResults = document.getElementById('search-results');
+
+        if (!searchInput || !searchBtn || !searchResults) return;
 
         const performSearch = () => {
             const query = searchInput.value.trim().toLowerCase();
@@ -427,6 +468,8 @@ class UIController {
 
     displaySearchResults(results) {
         const searchResults = document.getElementById('search-results');
+        if (!searchResults) return;
+        
         searchResults.innerHTML = '';
 
         if (results.length === 0) {
@@ -466,13 +509,15 @@ class UIController {
     }
 
     setupPositioningControls() {
+        const navControls = document.querySelector('.navigation-controls');
+        if (!navControls) return;
+        
         const positionBtn = document.createElement('button');
         positionBtn.id = 'position-btn';
         positionBtn.className = 'nav-btn nav-btn-primary';
         positionBtn.textContent = '📍 Show My Location';
         positionBtn.style.marginTop = '10px';
         
-        const navControls = document.querySelector('.navigation-controls');
         navControls.appendChild(positionBtn);
 
         const manualBtn = document.createElement('button');
@@ -504,16 +549,23 @@ class UIController {
 
     showNavigationInstructions(route) {
         const panel = document.getElementById('nav-instructions');
+        if (!panel) return;
+        
         panel.classList.remove('hidden');
 
         // Convert meters to feet (1 meter = 3.28084 feet)
         const totalDistanceFeet = Math.round(route.distance * 3.28084);
         const estimatedTime = Math.ceil(route.distance / 1.4 / 60);
 
-        document.getElementById('nav-distance').textContent = `${totalDistanceFeet}ft`;
-        document.getElementById('nav-time').textContent = `${estimatedTime} min`;
+        const distanceEl = document.getElementById('nav-distance');
+        const timeEl = document.getElementById('nav-time');
+        
+        if (distanceEl) distanceEl.textContent = `${totalDistanceFeet}ft`;
+        if (timeEl) timeEl.textContent = `${estimatedTime} min`;
 
         const instructionList = document.getElementById('instruction-list');
+        if (!instructionList) return;
+        
         instructionList.innerHTML = '';
 
         route.instructions.forEach((instruction, index) => {
@@ -537,13 +589,19 @@ class UIController {
             instructionList.appendChild(item);
         });
 
-        document.getElementById('close-nav').addEventListener('click', () => {
-            this.hideNavigationInstructions();
-        });
+        const closeNavBtn = document.getElementById('close-nav');
+        if (closeNavBtn) {
+            closeNavBtn.addEventListener('click', () => {
+                this.hideNavigationInstructions();
+            });
+        }
     }
 
     hideNavigationInstructions() {
-        document.getElementById('nav-instructions').classList.add('hidden');
+        const panel = document.getElementById('nav-instructions');
+        if (panel) {
+            panel.classList.add('hidden');
+        }
     }
 
     getInstructionIcon(type) {
