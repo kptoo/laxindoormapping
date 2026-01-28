@@ -135,18 +135,36 @@
             <div class="control-group">
                 <h3>Navigation</h3>
                 <div class="navigation-controls">
+                    <!-- Searchable From Dropdown -->
                     <div class="nav-select-group">
                         <label>From:</label>
-                        <select id="start-select" class="nav-select">
-                            <option value="">Select start point</option>
-                        </select>
+                        <div class="searchable-select" id="start-select-wrapper">
+                            <div class="select-display" data-select="start">
+                                <span class="select-text placeholder">Select start point</span>
+                                <span class="select-arrow">▼</span>
+                            </div>
+                            <div class="select-dropdown hidden">
+                                <input type="text" class="select-search" placeholder="Search start point...">
+                                <div class="select-options" id="start-options"></div>
+                            </div>
+                        </div>
                     </div>
+                    
+                    <!-- Searchable To Dropdown -->
                     <div class="nav-select-group">
                         <label>To:</label>
-                        <select id="end-select" class="nav-select">
-                            <option value="">Select destination</option>
-                        </select>
+                        <div class="searchable-select" id="end-select-wrapper">
+                            <div class="select-display" data-select="end">
+                                <span class="select-text placeholder">Select destination</span>
+                                <span class="select-arrow">▼</span>
+                            </div>
+                            <div class="select-dropdown hidden">
+                                <input type="text" class="select-search" placeholder="Search destination...">
+                                <div class="select-options" id="end-options"></div>
+                            </div>
+                        </div>
                     </div>
+                    
                     <button id="find-route-btn" class="nav-btn nav-btn-primary">Find Route</button>
                     <button id="clear-route-btn" class="nav-btn nav-btn-secondary">Clear Route</button>
                 </div>

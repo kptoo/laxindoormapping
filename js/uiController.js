@@ -3,6 +3,9 @@ class UIController {
         this.app = app;
         this.currentTerminal = 'all';
         this.currentLevel = 'all';
+        this.selectedStartPoint = null;
+        this.selectedEndPoint = null;
+        this.allNavigationPoints = [];
         this.setupPanelToggles();
         this.setupEventListeners();
         this.setupCollapsibleSections();
@@ -105,11 +108,7 @@ class UIController {
                 const terminal = btn.dataset.terminal;
                 
                 this.currentTerminal = terminal;
-                
-                // Update available levels based on terminal
                 this.updateLevelControls(terminal);
-                
-                // Filter map layers
                 this.app.layerManager.filterByTerminal(terminal);
                 
                 if (terminal !== 'all') {
@@ -121,23 +120,18 @@ class UIController {
 
     updateLevelControls(terminalId) {
         const levelControls = document.querySelector('.level-controls');
-        
-        // Get available levels for this terminal
         const availableLevels = this.app.dataLoader.getAvailableLevels(terminalId);
         
         console.log(`Available levels for ${terminalId}:`, availableLevels);
         
-        // Clear existing level buttons
         levelControls.innerHTML = '';
         
-        // Always add "All Levels" button
         const allBtn = document.createElement('button');
         allBtn.className = 'level-btn' + (this.currentLevel === 'all' ? ' active' : '');
         allBtn.setAttribute('data-level', 'all');
         allBtn.textContent = 'All';
         levelControls.appendChild(allBtn);
         
-        // Add buttons for each available level
         availableLevels.forEach(level => {
             const btn = document.createElement('button');
             btn.className = 'level-btn' + (this.currentLevel === level ? ' active' : '');
@@ -146,7 +140,6 @@ class UIController {
             levelControls.appendChild(btn);
         });
         
-        // Re-attach event listeners to new buttons
         this.setupLevelControls();
     }
 
@@ -159,7 +152,6 @@ class UIController {
                 const level = btn.dataset.level;
                 
                 this.currentLevel = level === 'all' ? 'all' : parseInt(level);
-                
                 this.app.layerManager.filterByLevel(this.currentLevel);
             });
         });
@@ -196,14 +188,12 @@ class UIController {
     setupNavigationControls() {
         const findRouteBtn = document.getElementById('find-route-btn');
         const clearRouteBtn = document.getElementById('clear-route-btn');
-        const startSelect = document.getElementById('start-select');
-        const endSelect = document.getElementById('end-select');
 
-        this.populateNavigationSelects();
+        this.initSearchableSelects();
 
         findRouteBtn.addEventListener('click', () => {
-            const startValue = startSelect.value;
-            const endValue = endSelect.value;
+            const startValue = this.selectedStartPoint;
+            const endValue = this.selectedEndPoint;
 
             if (!startValue || !endValue) {
                 alert('Please select both start and destination points');
@@ -267,13 +257,14 @@ class UIController {
         });
     }
 
-    populateNavigationSelects() {
-        const startSelect = document.getElementById('start-select');
-        const endSelect = document.getElementById('end-select');
+    initSearchableSelects() {
+        this.selectedStartPoint = null;
+        this.selectedEndPoint = null;
+        this.allNavigationPoints = [];
 
         const featurePoints = this.app.dataLoader.getAllNavigablePoints();
         
-        const allPoints = featurePoints.map((fp, index) => ({
+        this.allNavigationPoints = featurePoints.map((fp, index) => ({
             selectId: `point_${index}`,
             id: fp.id,
             name: fp.name,
@@ -281,29 +272,118 @@ class UIController {
             terminal: fp.terminal,
             terminalName: fp.terminalName,
             level: fp.level,
-            coordinates: fp.coordinates
+            coordinates: fp.coordinates,
+            displayText: `${fp.name} (${fp.terminalName}, L${fp.level})`
         }));
 
-        this.app.navigationPoints = allPoints;
+        this.app.navigationPoints = this.allNavigationPoints;
 
-        allPoints.sort((a, b) => {
+        this.allNavigationPoints.sort((a, b) => {
             if (a.terminal !== b.terminal) {
                 return a.terminal.localeCompare(b.terminal);
             }
             return a.name.localeCompare(b.name);
         });
 
-        allPoints.forEach(point => {
-            const option1 = document.createElement('option');
-            option1.value = point.selectId;
-            option1.textContent = `${point.name} (${point.terminalName}, L${point.level})`;
-            startSelect.appendChild(option1);
+        this.setupSearchableSelect('start', this.allNavigationPoints);
+        this.setupSearchableSelect('end', this.allNavigationPoints);
+    }
 
-            const option2 = document.createElement('option');
-            option2.value = point.selectId;
-            option2.textContent = `${point.name} (${point.terminalName}, L${point.level})`;
-            endSelect.appendChild(option2);
+    setupSearchableSelect(type, points) {
+        const displayElement = document.querySelector(`[data-select="${type}"]`);
+        const dropdownElement = displayElement.parentElement.querySelector('.select-dropdown');
+        const searchInput = dropdownElement.querySelector('.select-search');
+        const optionsContainer = dropdownElement.querySelector('.select-options');
+
+        this.renderSelectOptions(optionsContainer, points, type);
+
+        displayElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+            
+            document.querySelectorAll('.select-dropdown').forEach(dd => {
+                if (dd !== dropdownElement) {
+                    dd.classList.add('hidden');
+                    dd.parentElement.querySelector('.select-display').classList.remove('active');
+                }
+            });
+
+            const isHidden = dropdownElement.classList.contains('hidden');
+            
+            if (isHidden) {
+                dropdownElement.classList.remove('hidden');
+                displayElement.classList.add('active');
+                searchInput.value = '';
+                searchInput.focus();
+                this.renderSelectOptions(optionsContainer, points, type);
+            } else {
+                dropdownElement.classList.add('hidden');
+                displayElement.classList.remove('active');
+            }
         });
+
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            const filtered = query ? 
+                points.filter(p => p.displayText.toLowerCase().includes(query)) : 
+                points;
+            
+            this.renderSelectOptions(optionsContainer, filtered, type);
+        });
+
+        dropdownElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        document.addEventListener('click', () => {
+            dropdownElement.classList.add('hidden');
+            displayElement.classList.remove('active');
+        });
+    }
+
+    renderSelectOptions(container, points, type) {
+        container.innerHTML = '';
+
+        if (points.length === 0) {
+            container.innerHTML = '<div class="select-no-results">No results found</div>';
+            return;
+        }
+
+        points.forEach(point => {
+            const option = document.createElement('div');
+            option.className = 'select-option';
+            option.textContent = point.displayText;
+            option.dataset.value = point.selectId;
+
+            const currentSelection = type === 'start' ? this.selectedStartPoint : this.selectedEndPoint;
+            if (currentSelection === point.selectId) {
+                option.classList.add('selected');
+            }
+
+            option.addEventListener('click', () => {
+                this.selectOption(type, point);
+            });
+
+            container.appendChild(option);
+        });
+    }
+
+    selectOption(type, point) {
+        if (type === 'start') {
+            this.selectedStartPoint = point.selectId;
+        } else {
+            this.selectedEndPoint = point.selectId;
+        }
+
+        const displayElement = document.querySelector(`[data-select="${type}"]`);
+        const textElement = displayElement.querySelector('.select-text');
+        textElement.textContent = point.displayText;
+        textElement.classList.remove('placeholder');
+
+        const dropdownElement = displayElement.parentElement.querySelector('.select-dropdown');
+        dropdownElement.classList.add('hidden');
+        displayElement.classList.remove('active');
+
+        console.log(`Selected ${type}: ${point.name}`);
     }
 
     setupSearchControls() {
@@ -426,10 +506,11 @@ class UIController {
         const panel = document.getElementById('nav-instructions');
         panel.classList.remove('hidden');
 
-        const totalDistance = Math.round(route.distance);
+        // Convert meters to feet (1 meter = 3.28084 feet)
+        const totalDistanceFeet = Math.round(route.distance * 3.28084);
         const estimatedTime = Math.ceil(route.distance / 1.4 / 60);
 
-        document.getElementById('nav-distance').textContent = `${totalDistance}m`;
+        document.getElementById('nav-distance').textContent = `${totalDistanceFeet}ft`;
         document.getElementById('nav-time').textContent = `${estimatedTime} min`;
 
         const instructionList = document.getElementById('instruction-list');
@@ -441,9 +522,16 @@ class UIController {
             item.className = 'instruction-item';
             item.setAttribute('data-index', index);
             
+            // Convert instruction text if it contains distance
+            let instructionText = instruction.text;
+            if (instruction.type === 'walk' && instruction.distance) {
+                const distanceFeet = Math.round(instruction.distance * 3.28084);
+                instructionText = `Walk ${distanceFeet}ft`;
+            }
+            
             item.innerHTML = `
                 <div class="instruction-icon">${icon}</div>
-                <div class="instruction-text">${instruction.text}</div>
+                <div class="instruction-text">${instructionText}</div>
             `;
             
             instructionList.appendChild(item);
