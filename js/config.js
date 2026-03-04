@@ -49,46 +49,37 @@ const CONFIG = {
         food_beverage: { color: '#f97316', opacity: 0.85, outlineColor: '#c2410c', label: 'Food & Beverage', icon: true },
         restrooms: { color: '#a78bfa', opacity: 0.85, outlineColor: '#6d28d9', label: 'Restrooms', icon: true },
         services: { color: '#10b981', opacity: 0.85, outlineColor: '#047857', label: 'Services', icon: true },
-        service: { color: '#8b5cf6', opacity: 0.85, outlineColor: '#6d28d9', label: 'Service Points', icon: true },
-        vertical_circulation: { color: '#f59e0b', opacity: 0.85, outlineColor: '#d97706', label: 'Elevators/Stairs', icon: true },
-        corridors: { color: '#94a3b8', opacity: 0.5, outlineColor: '#64748b', label: 'Corridors', width: 3 },
-        connectors: { color: '#22c55e', opacity: 0.8, outlineColor: '#16a34a', label: 'Connectors', icon: true, width: 4 }
+        service: { color: '#10b981', opacity: 0.85, outlineColor: '#047857', label: 'Service', icon: true },
+        vertical_circulation: { color: '#8b5cf6', opacity: 0.85, outlineColor: '#6d28d9', label: 'Vertical Circulation', icon: true },
+        corridors: { color: '#9ca3af', width: 2, opacity: 0.6, label: 'Corridors' },
+        connectors: { color: '#6b7280', width: 1.5, opacity: 0.5, label: 'Connectors' }
     },
 
-    positioning: {
-        enabled: true,
-        highAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-        updateInterval: 1000,
-        minAccuracy: 50,
-        smoothing: true,
-        smoothingFactor: 0.3,
-        showAccuracyCircle: true,
-        autoCenter: true,
-        simulationMode: false,
-        wifiEnabled: true,
-        beaconEnabled: false
+    icons: {
+        targetSize: 32,
+        baseScale: 0.8
     },
 
     navigation: {
         routeColor: '#2563eb',
         routeWidth: 4,
-        routeOpacity: 0.8,
-        waypointColor: '#10b981',
-        destinationColor: '#ef4444',
-        animateRoute: true,
-        snapToRoute: true,
-        snapDistance: 10,
-        turnByTurnEnabled: true,
-        voiceGuidance: false
+        routeOpacity: 0.8
     },
 
-    icons: {
-        targetSize: 48,
-        baseScale: 0.2
+    positioning: {
+        showAccuracyCircle: true
+    },
+
+    // 3D View Configuration
+    view3D: {
+        enabled: false,
+        defaultHeight: 5,        // meters - default height for features without height property
+        wallHeight: 3,           // meters - height for wall/line features when extruded
+        wallThickness: 0.5,      // map units - thickness of extruded lines
+        minHeight: 1,            // validation - minimum extrusion height
+        maxHeight: 100           // validation - maximum extrusion height
     },
 
     dataPath: 'data',
-    routingGraphPath: 'routing_graph.json'  // Make sure this points to your graph file
+    routingGraphPath: 'routing_graph_fixed.json'
 };
