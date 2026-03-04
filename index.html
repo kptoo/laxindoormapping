@@ -127,8 +127,9 @@
             <div class="control-group">
                 <h3>View Mode</h3>
                 <div class="view-controls">
-                    <button id="view-3d-btn" class="view-btn active">3D</button>
-                    <button id="view-2d-btn" class="view-btn">2D</button>
+                    <button id="toggle-3d-btn" class="view-btn-3d" title="Toggle 3D/2D View">
+                        <span>🏙️</span> 3D View
+                    </button>
                 </div>
             </div>
 
@@ -198,10 +199,35 @@
     <script src="js/iconConfig.js"></script>
     <script src="js/dataLoader.js"></script>
     <script src="js/pathfinding.js"></script>
+    <script src="js/graphBuilder.js"></script>
     <script src="js/layerManager.js"></script>
     <script src="js/positioning.js"></script>
     <script src="js/navigation-simple.js"></script>
     <script src="js/uiController.js"></script>
     <script src="js/main.js"></script>
+    <script>
+        // Add 3D toggle functionality
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggle3dBtn = document.getElementById('toggle-3d-btn');
+            if (toggle3dBtn) {
+                toggle3dBtn.addEventListener('click', () => {
+                    if (window.app && window.app.layerManager) {
+                        window.app.layerManager.toggle3DMode();
+                        
+                        // Update button styling to indicate state
+                        if (window.app.layerManager.is3DMode) {
+                            toggle3dBtn.style.backgroundColor = '#2563eb';
+                            toggle3dBtn.style.color = '#ffffff';
+                            toggle3dBtn.innerHTML = '<span>🏙️</span> 3D View ON';
+                        } else {
+                            toggle3dBtn.style.backgroundColor = '#f3f4f6';
+                            toggle3dBtn.style.color = '#374151';
+                            toggle3dBtn.innerHTML = '<span>🏙️</span> 3D View';
+                        }
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>
