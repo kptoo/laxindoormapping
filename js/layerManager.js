@@ -7,6 +7,9 @@ class LayerManager {
         this.visibleFeatures = new Set(Object.keys(CONFIG.featureTypes));
         this.iconsLoaded = false;
         this.app = null;
+        this.is3DMode = false;
+        this.heightCache = new Map();
+        this.extrusionLayers = new Set();
     }
 
     async initialize() {
@@ -129,7 +132,11 @@ class LayerManager {
 
             const config = CONFIG.featureTypes[type];
 
+            // Cache heights for features
+            this.cacheHeights(data.features);
+
             if (data.features.length > 0 && data.features[0].geometry.type.includes('Polygon')) {
+                // Add 2D fill layer
                 this.map.addLayer({
                     id: `${layerId}-fill`,
                     type: 'fill',
@@ -140,6 +147,23 @@ class LayerManager {
                     }
                 });
 
+                // Add 3D extrusion layer (initially hidden)
+                this.map.addLayer({
+                    id: `${layerId}-extrusion`,
+                    type: 'fill-extrusion',
+                    source: layerId,
+                    paint: {
+                        'fill-extrusion-color': config.color,
+                        'fill-extrusion-height': this.getHeightExpression(layerId),
+                        'fill-extrusion-base': 0,
+                        'fill-extrusion-opacity': config.opacity
+                    },
+                    layout: {
+                        'visibility': 'none'
+                    }
+                }, 'route-line');
+
+                // Add outline layer
                 this.map.addLayer({
                     id: `${layerId}-outline`,
                     type: 'line',
@@ -149,6 +173,9 @@ class LayerManager {
                         'line-width': 1
                     }
                 });
+
+                this.extrusionLayers.add(`${layerId}-fill`);
+                this.extrusionLayers.add(`${layerId}-extrusion`);
             }
 
             if (type !== 'building' && config.icon && this.iconsLoaded) {
@@ -188,6 +215,43 @@ class LayerManager {
         } catch (error) {
             console.error(`Error adding feature layer ${layerId}:`, error);
         }
+    }
+
+    cacheHeights(features) {
+        features.forEach(feature => {
+            const height = this.getFeatureHeight(feature);
+            if (feature.properties?.id || feature.id) {
+                const key = feature.properties?.id || feature.id;
+                this.heightCache.set(key, height);
+            }
+        });
+    }
+
+    getFeatureHeight(feature) {
+        const props = feature.properties || {};
+        
+        // Try various height property names
+        let height = props.height || props.Height || props.h || null;
+        
+        if (height && !isNaN(height)) {
+            height = Math.max(
+                CONFIG.view3D.minHeight,
+                Math.min(parseFloat(height), CONFIG.view3D.maxHeight)
+            );
+            return height;
+        }
+        
+        return CONFIG.view3D.defaultHeight;
+    }
+
+    getHeightExpression(layerId) {
+        return [
+            'coalesce',
+            ['get', 'height'],
+            ['get', 'Height'],
+            ['get', 'h'],
+            CONFIG.view3D.defaultHeight
+        ];
     }
 
     getIconExpression(featureType) {
@@ -391,6 +455,69 @@ class LayerManager {
         }
     }
 
+    toggle3DMode() {
+        this.is3DMode = !this.is3DMode;
+        console.log(`Toggling 3D mode: ${this.is3DMode ? 'ON' : 'OFF'}`);
+        
+        const duration = 1000;
+        const targetPitch = this.is3DMode ? 45 : 0;
+        const targetBearing = this.is3DMode ? 45 : 0;
+
+        // Animate camera
+        this.map.easeTo({
+            pitch: targetPitch,
+            bearing: targetBearing,
+            duration: duration
+        });
+
+        // Update layer visibility with slight delay for smooth transition
+        setTimeout(() => {
+            this.updateLayerFor3D();
+        }, 50);
+    }
+
+    updateLayerFor3D() {
+        if (this.is3DMode) {
+            // Switch to 3D extrusion layers
+            for (const terminal of CONFIG.terminals) {
+                for (const type of Object.keys(CONFIG.featureTypes)) {
+                    if (type === 'corridors' || type === 'connectors') continue;
+
+                    const layerId = `${type}-${terminal.id}`;
+                    const fillLayerId = `${layerId}-fill`;
+                    const extrusionLayerId = `${layerId}-extrusion`;
+
+                    // Hide fill layer, show extrusion layer
+                    if (this.map.getLayer(fillLayerId)) {
+                        this.map.setLayoutProperty(fillLayerId, 'visibility', 'none');
+                    }
+                    if (this.map.getLayer(extrusionLayerId)) {
+                        this.map.setLayoutProperty(extrusionLayerId, 'visibility', 'visible');
+                    }
+                }
+            }
+        } else {
+            // Switch back to 2D layers
+            for (const terminal of CONFIG.terminals) {
+                for (const type of Object.keys(CONFIG.featureTypes)) {
+                    if (type === 'corridors' || type === 'connectors') continue;
+
+                    const layerId = `${type}-${terminal.id}`;
+                    const fillLayerId = `${layerId}-fill`;
+                    const extrusionLayerId = `${layerId}-extrusion`;
+
+                    // Show fill layer, hide extrusion layer
+                    if (this.map.getLayer(fillLayerId)) {
+                        this.map.setLayoutProperty(fillLayerId, 'visibility', 'visible');
+                    }
+                    if (this.map.getLayer(extrusionLayerId)) {
+                        this.map.setLayoutProperty(extrusionLayerId, 'visibility', 'none');
+                    }
+                }
+            }
+        }
+    }
+
     filterByTerminal(terminalId) {
         console.log(`Filtering by terminal: ${terminalId}`);
         this.currentTerminal = terminalId;
@@ -458,8 +585,8 @@ class LayerManager {
                     }
                 }
 
-                // Update layer visibility
-                ['', '-fill', '-outline', '-label', '-icon'].forEach(suffix => {
+                // Update layer visibility for all layer suffixes
+                ['', '-fill', '-extrusion', '-outline', '-label', '-icon'].forEach(suffix => {
                     const fullLayerId = layerId + suffix;
                     if (this.map.getLayer(fullLayerId)) {
                         try {
@@ -481,6 +608,7 @@ class LayerManager {
             for (const type of Object.keys(CONFIG.featureTypes)) {
                 if (type === 'building' || type === 'corridors') continue;
                 clickableLayers.push(`${type}-${terminal.id}-fill`);
+                clickableLayers.push(`${type}-${terminal.id}-extrusion`);
                 clickableLayers.push(`${type}-${terminal.id}-icon`);
             }
         }
