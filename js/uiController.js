@@ -173,22 +173,24 @@ class UIController {
     }
 
     setupViewControls() {
-        const view3dBtn = document.getElementById('view-3d-btn');
-        const view2dBtn = document.getElementById('view-2d-btn');
+        const toggle3dBtn = document.getElementById('toggle-3d-btn');
         
-        if (!view3dBtn || !view2dBtn) return;
-        
-        view3dBtn.addEventListener('click', () => {
-            view3dBtn.classList.add('active');
-            view2dBtn.classList.remove('active');
-            this.app.map.easeTo({ pitch: 45, bearing: 0, duration: 1000 });
-        });
-        
-        view2dBtn.addEventListener('click', () => {
-            view2dBtn.classList.add('active');
-            view3dBtn.classList.remove('active');
-            this.app.map.easeTo({ pitch: 0, bearing: 0, duration: 1000 });
-        });
+        if (toggle3dBtn) {
+            toggle3dBtn.addEventListener('click', () => {
+                this.app.layerManager.toggle3DMode();
+                
+                // Update button styling to indicate state
+                if (this.app.layerManager.is3DMode) {
+                    toggle3dBtn.style.backgroundColor = '#2563eb';
+                    toggle3dBtn.style.color = '#ffffff';
+                    toggle3dBtn.innerHTML = '<span>🏙️</span> 3D View ON';
+                } else {
+                    toggle3dBtn.style.backgroundColor = '#f3f4f6';
+                    toggle3dBtn.style.color = '#374151';
+                    toggle3dBtn.innerHTML = '<span>🏙️</span> 3D View';
+                }
+            });
+        }
     }
 
     setupNavigationControls() {
@@ -315,59 +317,58 @@ class UIController {
     }
 
     setupSearchableSelect(type, points) {
-        const displayElement = document.querySelector(`[data-select="${type}"]`);
-        if (!displayElement) return;
-        
-        const dropdownElement = displayElement.parentElement.querySelector('.select-dropdown');
-        if (!dropdownElement) return;
-        
-        const searchInput = dropdownElement.querySelector('.select-search');
-        const optionsContainer = dropdownElement.querySelector('.select-options');
-        
-        if (!searchInput || !optionsContainer) return;
+        const selectWrapper = document.getElementById(`${type}-select-wrapper`);
+        if (!selectWrapper) return;
 
-        this.renderSelectOptions(optionsContainer, points, type);
+        const display = selectWrapper.querySelector('.select-display');
+        const dropdown = selectWrapper.querySelector('.select-dropdown');
+        const searchInput = dropdown.querySelector('.select-search');
+        const optionsContainer = dropdown.querySelector('.select-options');
 
-        displayElement.addEventListener('click', (e) => {
+        if (!display || !dropdown || !searchInput || !optionsContainer) return;
+
+        // Toggle dropdown on display click
+        display.addEventListener('click', (e) => {
             e.stopPropagation();
+            const isHidden = dropdown.classList.contains('hidden');
             
-            document.querySelectorAll('.select-dropdown').forEach(dd => {
-                if (dd !== dropdownElement) {
-                    dd.classList.add('hidden');
-                    dd.parentElement.querySelector('.select-display').classList.remove('active');
+            // Close other dropdowns
+            document.querySelectorAll('.select-dropdown').forEach(d => {
+                if (d !== dropdown) {
+                    d.classList.add('hidden');
+                    d.parentElement.querySelector('.select-display').classList.remove('active');
                 }
             });
 
-            const isHidden = dropdownElement.classList.contains('hidden');
-            
             if (isHidden) {
-                dropdownElement.classList.remove('hidden');
-                displayElement.classList.add('active');
-                searchInput.value = '';
+                dropdown.classList.remove('hidden');
+                display.classList.add('active');
                 searchInput.focus();
-                this.renderSelectOptions(optionsContainer, points, type);
             } else {
-                dropdownElement.classList.add('hidden');
-                displayElement.classList.remove('active');
+                dropdown.classList.add('hidden');
+                display.classList.remove('active');
             }
         });
 
-        searchInput.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase().trim();
-            const filtered = query ? 
-                points.filter(p => p.displayText.toLowerCase().includes(query)) : 
-                points;
-            
+        // Handle search input
+        searchInput.addEventListener('input', () => {
+            const query = searchInput.value.toLowerCase();
+            const filtered = points.filter(p => 
+                p.displayText.toLowerCase().includes(query) ||
+                p.name.toLowerCase().includes(query)
+            );
             this.renderSelectOptions(optionsContainer, filtered, type);
         });
 
-        dropdownElement.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
+        // Initial render
+        this.renderSelectOptions(optionsContainer, points, type);
 
-        document.addEventListener('click', () => {
-            dropdownElement.classList.add('hidden');
-            displayElement.classList.remove('active');
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!selectWrapper.contains(e.target)) {
+                dropdown.classList.add('hidden');
+                display.classList.remove('active');
+            }
         });
     }
 
@@ -459,9 +460,9 @@ class UIController {
         const allFeatures = this.app.dataLoader.getAllFeaturesForSearch();
         return allFeatures.filter(feature => {
             const name = (feature.properties.name || feature.properties.Name || '').toLowerCase();
-            const gate = (feature.properties.gate || '').toLowerCase();
+            const gate = (feature.properties.gate_num || feature.properties.gate || '').toLowerCase();
             const category = (feature.properties.category || '').toLowerCase();
-            const type = feature.properties.featureType.toLowerCase();
+            const type = (feature.properties.featureType || '').toLowerCase();
             return name.includes(query) || gate.includes(query) || category.includes(query) || type.includes(query);
         }).slice(0, 10);
     }
@@ -496,15 +497,13 @@ class UIController {
             
             item.addEventListener('click', () => {
                 this.zoomToFeature(feature);
-                searchResults.classList.add('hidden');
-                
                 document.getElementById('search-panel').classList.add('panel-hidden');
                 document.getElementById('search-panel').classList.remove('panel-visible');
             });
             
             searchResults.appendChild(item);
         });
-
+        
         searchResults.classList.remove('hidden');
     }
 
@@ -534,108 +533,135 @@ class UIController {
                 positionBtn.classList.remove('active');
             } else {
                 this.app.positioning.start();
-                positionBtn.textContent = '⏸️ Stop Tracking';
+                positionBtn.textContent = '📍 Stop Tracking';
                 positionBtn.classList.add('active');
             }
         });
 
         manualBtn.addEventListener('click', () => {
             this.app.positioning.enableManualMode();
-            
-            document.getElementById('controls').classList.add('panel-hidden');
-            document.getElementById('controls').classList.remove('panel-visible');
         });
     }
 
     showNavigationInstructions(route) {
-        const panel = document.getElementById('nav-instructions');
-        if (!panel) return;
+        const navInstructions = document.getElementById('nav-instructions');
+        if (!navInstructions) return;
+
+        navInstructions.classList.remove('hidden');
+
+        // Update distance and time
+        const distance = (route.distance / 1000).toFixed(2);
+        const time = route.duration ? Math.ceil(route.duration / 60) : '--';
         
-        panel.classList.remove('hidden');
+        document.getElementById('nav-distance').textContent = `${distance} km`;
+        document.getElementById('nav-time').textContent = `${time} min`;
 
-        // Convert meters to feet (1 meter = 3.28084 feet)
-        const totalDistanceFeet = Math.round(route.distance * 3.28084);
-        const estimatedTime = Math.ceil(route.distance / 1.4 / 60);
-
-        const distanceEl = document.getElementById('nav-distance');
-        const timeEl = document.getElementById('nav-time');
-        
-        if (distanceEl) distanceEl.textContent = `${totalDistanceFeet}ft`;
-        if (timeEl) timeEl.textContent = `${estimatedTime} min`;
-
+        // Build instruction list
         const instructionList = document.getElementById('instruction-list');
-        if (!instructionList) return;
-        
         instructionList.innerHTML = '';
 
-        route.instructions.forEach((instruction, index) => {
-            const icon = this.getInstructionIcon(instruction.type);
-            const item = document.createElement('div');
-            item.className = 'instruction-item';
-            item.setAttribute('data-index', index);
-            
-            // Convert instruction text if it contains distance
-            let instructionText = instruction.text;
-            if (instruction.type === 'walk' && instruction.distance) {
-                const distanceFeet = Math.round(instruction.distance * 3.28084);
-                instructionText = `Walk ${distanceFeet}ft`;
-            }
-            
-            item.innerHTML = `
-                <div class="instruction-icon">${icon}</div>
-                <div class="instruction-text">${instructionText}</div>
-            `;
-            
-            instructionList.appendChild(item);
-        });
+        if (route.instructions && route.instructions.length > 0) {
+            route.instructions.forEach((instruction, index) => {
+                const item = document.createElement('div');
+                item.className = 'instruction-item';
+                item.innerHTML = `
+                    <div class="instruction-number">${index + 1}</div>
+                    <div class="instruction-content">
+                        <div class="instruction-text">${instruction.text}</div>
+                        <div class="instruction-distance">${instruction.distance ? (instruction.distance / 1000).toFixed(2) + ' km' : 'N/A'}</div>
+                    </div>
+                `;
+                instructionList.appendChild(item);
+            });
+        } else {
+            instructionList.innerHTML = '<div style="padding: 10px; text-align: center; color: #6b7280;">Navigation started. Follow the blue route on the map.</div>';
+        }
 
-        const closeNavBtn = document.getElementById('close-nav');
-        if (closeNavBtn) {
-            closeNavBtn.addEventListener('click', () => {
+        const closeBtn = document.getElementById('close-nav');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
                 this.hideNavigationInstructions();
             });
         }
     }
 
     hideNavigationInstructions() {
-        const panel = document.getElementById('nav-instructions');
-        if (panel) {
-            panel.classList.add('hidden');
+        const navInstructions = document.getElementById('nav-instructions');
+        if (navInstructions) {
+            navInstructions.classList.add('hidden');
         }
     }
 
     getInstructionIcon(type) {
-        const icons = { 
-            walk: '🚶', 
-            level_change: '🔼', 
-            transport: '🚌', 
-            arrival: '🎯', 
-            entrance: '🚪' 
+        const icons = {
+            'turn': '🔄',
+            'straight': '⬆️',
+            'left': '↙️',
+            'right': '↗️',
+            'destination': '🎯',
+            'start': '🚩'
         };
-        return icons[type] || '📍';
+        return icons[type] || '➤';
     }
 
     zoomToTerminal(terminalId) {
         const bounds = this.app.calculateTerminalBounds(terminalId);
         if (bounds) {
-            this.app.map.fitBounds(bounds, { padding: 50, duration: 1000 });
+            this.app.map.fitBounds(bounds, {
+                padding: 100,
+                duration: 1000
+            });
         }
     }
 
     zoomToFeature(feature) {
-        const center = this.app.dataLoader.getFeatureCenter(feature);
-        this.app.map.flyTo({ center: center, zoom: 18, pitch: 45, duration: 1500 });
-        setTimeout(() => {
-            new maplibregl.Popup()
-                .setLngLat(center)
-                .setHTML(`
-                    <div class="popup-content">
-                        <div class="popup-title">${feature.properties.name || feature.properties.Name || 'Feature'}</div>
-                        <div class="popup-info"><strong>Terminal:</strong> ${feature.properties.terminalName}</div>
-                        <div class="popup-info"><strong>Level:</strong> ${feature.properties.level || feature.properties.Level || 1}</div>
-                    </div>
-                `)
-                .addTo(this.app.map);
-        }, 1500);
+        const geometry = feature.geometry;
+        let coordinates;
+
+        if (geometry.type === 'Point') {
+            coordinates = geometry.coordinates;
+            this.app.map.flyTo({
+                center: coordinates,
+                zoom: 18,
+                pitch: 0,
+                duration: 1000
+            });
+        } else if (geometry.type === 'Polygon') {
+            const coords = geometry.coordinates[0];
+            let minLng = Infinity, maxLng = -Infinity;
+            let minLat = Infinity, maxLat = -Infinity;
+
+            coords.forEach(coord => {
+                minLng = Math.min(minLng, coord[0]);
+                maxLng = Math.max(maxLng, coord[0]);
+                minLat = Math.min(minLat, coord[1]);
+                maxLat = Math.max(maxLat, coord[1]);
+            });
+
+            this.app.map.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
+                padding: 100,
+                duration: 1000
+            });
+        } else if (geometry.type === 'MultiPolygon') {
+            const allCoords = [];
+            geometry.coordinates.forEach(polygon => {
+                allCoords.push(...polygon[0]);
+            });
+
+            let minLng = Infinity, maxLng = -Infinity;
+            let minLat = Infinity, maxLat = -Infinity;
+
+            allCoords.forEach(coord => {
+                minLng = Math.min(minLng, coord[0]);
+                maxLng = Math.max(maxLng, coord[0]);
+                minLat = Math.min(minLat, coord[1]);
+                maxLat = Math.max(maxLat, coord[1]);
+            });
+
+            this.app.map.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
+                padding: 100,
+                duration: 1000
+            });
+        }
     }
 }
