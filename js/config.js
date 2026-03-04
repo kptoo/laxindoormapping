@@ -57,7 +57,7 @@ const CONFIG = {
 
     icons: {
         targetSize: 32,
-        baseScale: 0.1
+        baseScale: 0.2
     },
 
     navigation: {
