@@ -368,6 +368,31 @@ class LayerManager {
             });
 
             this.map.addLayer({
+                id: 'user-location-heading',
+                type: 'symbol',
+                source: 'user-location',
+                filter: ['all',
+                    ['==', ['get', 'type'], 'position'],
+                    ['==', ['get', 'hasHeading'], true]
+                ],
+                layout: {
+                    'text-field': '▲',
+                    'text-size': 22,
+                    'text-font': ['Open Sans Bold'],
+                    'text-allow-overlap': true,
+                    'text-ignore-placement': true,
+                    'text-rotation-alignment': 'map',
+                    'text-rotate': ['get', 'heading'],
+                    'text-offset': [0, -1.4]
+                },
+                paint: {
+                    'text-color': '#1d4ed8',
+                    'text-halo-color': '#ffffff',
+                    'text-halo-width': 1.5
+                }
+            });
+
+            this.map.addLayer({
                 id: 'user-location-dot',
                 type: 'circle',
                 source: 'user-location',
@@ -404,6 +429,7 @@ class LayerManager {
 
     updateUserLocation(longitude, latitude, accuracy = null, heading = null) {
         const features = [];
+        const hasHeading = Number.isFinite(heading);
 
         if (accuracy && CONFIG.positioning.showAccuracyCircle) {
             const radiusInMeters = accuracy;
@@ -418,7 +444,11 @@ class LayerManager {
 
         features.push({
             type: 'Feature',
-            properties: { type: 'position', heading: heading },
+            properties: {
+                type: 'position',
+                heading: hasHeading ? heading : 0,
+                hasHeading: hasHeading
+            },
             geometry: { type: 'Point', coordinates: [longitude, latitude] }
         });
 
